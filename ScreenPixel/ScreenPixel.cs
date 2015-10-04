@@ -1,21 +1,11 @@
 using System;
-using System.Linq;
-using System.Text;
-using System.Windows;
 using System.Drawing;
-using Microsoft.Win32;
 using System.Reflection;
-using System.Drawing.Text;
-using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Runtime.CompilerServices;
 using PaintDotNet;
-using PaintDotNet.Data;
 using PaintDotNet.Effects;
-using PaintDotNet.AppModel;
 using PaintDotNet.IndirectUI;
-using PaintDotNet.Collections;
 using PaintDotNet.PropertySystem;
 
 [assembly: AssemblyTitle("Screen Pixel Plugin for Paint.NET")]
@@ -113,7 +103,6 @@ namespace ScreenPixelEffect
             Amount3
         }
 
-
         protected override PropertyCollection OnCreatePropertyCollection()
         {
             List<Property> props = new List<Property>();
@@ -144,11 +133,6 @@ namespace ScreenPixelEffect
             this.Amount3 = newToken.GetProperty<BooleanProperty>(PropertyNames.Amount3).Value;
 
             base.OnSetRenderInfo(newToken, dstArgs, srcArgs);
-
-            if (cellSurface == null)
-            {
-                cellSurface = new Surface(dstArgs.Size);
-            }
         }
 
         protected override unsafe void OnRender(Rectangle[] rois, int startIndex, int length)
@@ -167,44 +151,40 @@ namespace ScreenPixelEffect
         bool Amount3 = true; // [0,1] Use Pixelation
         #endregion
 
-        private Surface cellSurface = null;
-
         private BinaryPixelOp normalOp = LayerBlendModeUtil.CreateCompositionOp(LayerBlendMode.Normal);
 
-        unsafe void Render(Surface dst, Surface src, Rectangle rect)
+        void Render(Surface dst, Surface src, Rectangle rect)
         {
-            if (Amount3 == true)
+            if (Amount3)
             {
                 int cellAmount = Amount1 * 3;
-                PixelateEffect cellEffect = new PixelateEffect();
-                PropertyCollection cellProps = cellEffect.CreatePropertyCollection();
-                PropertyBasedEffectConfigToken cellParameters = new PropertyBasedEffectConfigToken(cellProps);
-                cellParameters.SetPropertyValue(PixelateEffect.PropertyNames.CellSize, cellAmount);
-                cellEffect.SetRenderInfo(cellParameters, new RenderArgs(cellSurface), new RenderArgs(src));
-                cellEffect.Render(new Rectangle[1] { rect }, 0, 1);
-
-                src = cellSurface;
+                PixelateEffect pixelateEffect = new PixelateEffect();
+                PropertyCollection pixelateProps = pixelateEffect.CreatePropertyCollection();
+                PropertyBasedEffectConfigToken pixelateParameters = new PropertyBasedEffectConfigToken(pixelateProps);
+                pixelateParameters.SetPropertyValue(PixelateEffect.PropertyNames.CellSize, cellAmount);
+                pixelateEffect.SetRenderInfo(pixelateParameters, new RenderArgs(dst), new RenderArgs(src));
+                pixelateEffect.Render(new Rectangle[1] { rect }, 0, 1);
             }
 
-
-
-            int amo1 = Amount1 * 3;
+            int size = Amount1 * 3;
             int cy, cx, y1, x1;
-            ColorBgra CP1;
-            ColorBgra CP2;
-            for (int y = rect.Top; y < rect.Bottom; y = y + amo1)
+            ColorBgra OriginalImage;
+            ColorBgra CurrentPixel;
+            for (int y = rect.Top; y < rect.Bottom; y = y + size)
             {
-                for (int x = rect.Left; x < rect.Right; x = x + amo1)
+                if (IsCancelRequested) return;
+                for (int x = rect.Left; x < rect.Right; x = x + size)
                 {
-                    CP2 = src[x, y];
-                    CP1 = src[x, y];
-                    CP1.A = (byte)Amount2;
+                    OriginalImage = (Amount3) ? dst[x, y] : src[x, y];
+                    CurrentPixel = (Amount3) ? dst[x, y] : src[x, y];
 
-                    CP1.G = 0;
-                    CP1.B = 0;
-                    for (cy = 0; cy < amo1; cy++)
+                    CurrentPixel.A = (byte)Amount2;
+
+                    CurrentPixel.G = 0;
+                    CurrentPixel.B = 0;
+                    for (cy = 0; cy < size; cy++)
                     {
-                        for (cx = 0; cx < (amo1 / 3); cx++)
+                        for (cx = 0; cx < (size / 3); cx++)
                         {
                             x1 = x + cx;
                             y1 = y + cy;
@@ -212,17 +192,17 @@ namespace ScreenPixelEffect
                             {
                                 if (y1 < rect.Bottom)
                                 {
-                                    dst[x1, y1] = normalOp.Apply(CP2, CP1);
+                                    dst[x1, y1] = normalOp.Apply(OriginalImage, CurrentPixel);
                                 }
                             }
                         }
                     }
 
-                    CP1.G = (byte)src[x, y];
-                    CP1.R = 0;
-                    for (cy = 0; cy < amo1; cy++)
+                    CurrentPixel.G = (byte)src[x, y];
+                    CurrentPixel.R = 0;
+                    for (cy = 0; cy < size; cy++)
                     {
-                        for (cx = (amo1 / 3); cx < (2 * (amo1 / 3)); cx++)
+                        for (cx = (size / 3); cx < (2 * (size / 3)); cx++)
                         {
                             x1 = x + cx;
                             y1 = y + cy;
@@ -230,17 +210,17 @@ namespace ScreenPixelEffect
                             {
                                 if (y1 < rect.Bottom)
                                 {
-                                    dst[x1, y1] = normalOp.Apply(CP2, CP1);
+                                    dst[x1, y1] = normalOp.Apply(OriginalImage, CurrentPixel);
                                 }
                             }
                         }
                     }
 
-                    CP1.B = (byte)src[x, y];
-                    CP1.G = 0;
-                    for (cy = 0; cy < amo1; cy++)
+                    CurrentPixel.B = (byte)src[x, y];
+                    CurrentPixel.G = 0;
+                    for (cy = 0; cy < size; cy++)
                     {
-                        for (cx = (2 * (amo1 / 3)); cx < amo1; cx++)
+                        for (cx = (2 * (size / 3)); cx < size; cx++)
                         {
                             x1 = x + cx;
                             y1 = y + cy;
@@ -248,7 +228,7 @@ namespace ScreenPixelEffect
                             {
                                 if (y1 < rect.Bottom)
                                 {
-                                    dst[x1, y1] = normalOp.Apply(CP2, CP1);
+                                    dst[x1, y1] = normalOp.Apply(OriginalImage, CurrentPixel);
                                 }
                             }
                         }
