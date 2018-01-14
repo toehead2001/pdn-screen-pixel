@@ -2,28 +2,37 @@
 // Submenu: Distort
 // Author: Bleek II & toe_head2001
 // Title:
+// Version: 1.1
 // Desc: Breaks images into their RGB components
 // Keywords: subpixel|rgb|screen
-// URL: http://www.getpaint.net/redirect/plugins.html
+// URL: https://forums.getpaint.net/index.php?showtopic=31570
 // Help:
 #region UICode
-int Amount1 = 1; // [1,33] Size
-int Amount2 = 100; // [0,255] Opacity
-bool Amount3 = true; // [0,1] Use Pixelation
+IntSliderControl Amount1 = 1; // [1,33] Size
+IntSliderControl Amount2 = 100; // [0,255] Opacity
+CheckboxControl Amount3 = true; // [0,1] Use Pixelation
 #endregion
 
-private BinaryPixelOp normalOp = LayerBlendModeUtil.CreateCompositionOp(LayerBlendMode.Normal);
+readonly BinaryPixelOp normalOp = LayerBlendModeUtil.CreateCompositionOp(LayerBlendMode.Normal);
+readonly PixelateEffect pixelateEffect = new PixelateEffect();
+PropertyCollection pixelateProps;
+
+void PreRender(Surface dst, Surface src)
+{
+    if (Amount3)
+    {
+        int cellAmount = Amount1 * 3;
+        pixelateProps = pixelateEffect.CreatePropertyCollection();
+        PropertyBasedEffectConfigToken pixelateParameters = new PropertyBasedEffectConfigToken(pixelateProps);
+        pixelateParameters.SetPropertyValue(PixelateEffect.PropertyNames.CellSize, cellAmount);
+        pixelateEffect.SetRenderInfo(pixelateParameters, new RenderArgs(dst), new RenderArgs(src));
+    }
+}
 
 void Render(Surface dst, Surface src, Rectangle rect)
 {
     if (Amount3)
     {
-        int cellAmount = Amount1 * 3;
-        PixelateEffect pixelateEffect = new PixelateEffect();
-        PropertyCollection pixelateProps = pixelateEffect.CreatePropertyCollection();
-        PropertyBasedEffectConfigToken pixelateParameters = new PropertyBasedEffectConfigToken(pixelateProps);
-        pixelateParameters.SetPropertyValue(PixelateEffect.PropertyNames.CellSize, cellAmount);
-        pixelateEffect.SetRenderInfo(pixelateParameters, new RenderArgs(dst), new RenderArgs(src));
         pixelateEffect.Render(new Rectangle[1] { rect }, 0, 1);
     }
 
